@@ -3,6 +3,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,12 +17,40 @@ import com.google.gson.annotations.SerializedName;
 
 
 public class ConversorMonedas {
+
+    private static class ConversionRecord {
+        String monedaOrigen;
+        String monedaDestino;
+        double cantidad;
+        double resultado;
+        LocalDateTime timestamp;
+
+        ConversionRecord(String origen, String destino, double cant, double res) {
+            this.monedaOrigen = origen;
+            this.monedaDestino = destino;
+            this.cantidad = cant;
+            this.resultado = res;
+            this.timestamp = LocalDateTime.now();
+        }
+    }
+
+
     private static final String API_KEY = "4847f367b64a5729536bcb7e";
     private static final String URL_BASE = "https://v6.exchangerate-api.com/v6/" + API_KEY + "/latest/";
     private static Set<String> monedasDisponibles;
     private static final Gson GSON = new Gson();
 
     private static final Map<String, String> NOMBRES_MONEDAS = new HashMap<>();
+    private static final List<ConversionRecord> HISTORIAL = new ArrayList<>(); // Almacena historial
+    private static final List<String[]> CONVERSIONES_RAPIDAS = List.of( // Lista de conversiones rápidas
+            new String[]{"USD", "MXN"},
+            new String[]{"ARS", "MXN"},
+            new String[]{"BRL", "CAD"},
+            new String[]{"CNY", "USD"},
+            new String[]{"COP", "ARS"}
+    );
+
+
     static {
         NOMBRES_MONEDAS.put("AED", "AED - Emiratos Árabes Unidos (Dirham)");
         NOMBRES_MONEDAS.put("ARS", "ARS - Argentina (Peso Argentino)");
@@ -66,7 +96,7 @@ public class ConversorMonedas {
         NOMBRES_MONEDAS.put("VND", "VND - Vietnam (Dong Vietnamita)");
         NOMBRES_MONEDAS.put("ZAR", "ZAR - Sudáfrica (Rand Sudafricano)");
     }
-        // Clases para mapear la respuesta JSON
+    // Clases para mapear la respuesta JSON
     private static class ApiResponse {
         String result;
         @SerializedName("conversion_rates")
@@ -90,21 +120,27 @@ public class ConversorMonedas {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
             while (true) {
                 System.out.println("\n=== CONVERSOR DE MONEDAS ===");
-                System.out.println("1. Realizar conversión");
-                System.out.println("2. Ver lista de monedas");
-                System.out.println("3. Salir");
+                System.out.println("1. Realizar conversión manual");
+                System.out.println("2. Conversiones rápidas");
+                System.out.println("3. Ver lista de monedas");
+                System.out.println("4. Ver historial de conversiones");
+                System.out.println("5. Salir");
                 System.out.print("Seleccione una opción: ");
-
                 String opcion = reader.readLine();
-
                 switch (opcion) {
                     case "1":
                         realizarConversion(reader);
                         break;
                     case "2":
-                        mostrarMonedasDisponibles();
+                        mostrarConversionesRapidas(reader);
                         break;
                     case "3":
+                        mostrarMonedasDisponibles();
+                        break;
+                    case "4":
+                        mostrarHistorial();
+                        break;
+                    case "5":
                         System.out.println("¡Hasta luego!");
                         return;
                     default:
@@ -140,6 +176,58 @@ public class ConversorMonedas {
             System.out.println("Cantidad no válida");
         }
     }
+
+    private static void mostrarConversionesRapidas(BufferedReader reader) throws IOException {
+        System.out.println("\n=== CONVERSIONES RÁPIDAS ===");
+        for (int i = 0; i < CONVERSIONES_RAPIDAS.size(); i++) {
+            String[] conversion = CONVERSIONES_RAPIDAS.get(i);
+            System.out.printf("%d. %s a %s\n", i+1,
+                    obtenerNombreCompleto(conversion[0]),
+                    obtenerNombreCompleto(conversion[1]));
+        }
+        System.out.print("Seleccione una conversión (1-5): ");
+        int seleccion = Integer.parseInt(reader.readLine()) - 1;
+
+        if (seleccion < 0 || seleccion >= CONVERSIONES_RAPIDAS.size()) {
+            System.out.println("Opción inválida");
+            return;
+        }
+
+        String[] conversion = CONVERSIONES_RAPIDAS.get(seleccion);
+        System.out.print("Cantidad a convertir: ");
+        double cantidad = Double.parseDouble(reader.readLine());
+
+        double tasa = obtenerTasaConversion(conversion[0], conversion[1]);
+        double resultado = cantidad * tasa;
+
+        // Registrar en historial
+        HISTORIAL.add(new ConversionRecord(conversion[0], conversion[1], cantidad, resultado));
+
+        System.out.printf("\n%.2f %s = %.2f %s\n",
+                cantidad,
+                obtenerNombreCompleto(conversion[0]),
+                resultado,
+                obtenerNombreCompleto(conversion[1]));
+    }
+
+    private static void mostrarHistorial() {
+        if (HISTORIAL.isEmpty()) {
+            System.out.println("\nNo hay conversiones registradas");
+            return;
+        }
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+        System.out.println("\n=== HISTORIAL DE CONVERSIONES ===");
+        for (ConversionRecord record : HISTORIAL) {
+            System.out.printf("[%s] %.2f %s → %.2f %s\n",
+                    record.timestamp.format(formatter),
+                    record.cantidad,
+                    obtenerNombreCompleto(record.monedaOrigen),
+                    record.resultado,
+                    obtenerNombreCompleto(record.monedaDestino));
+        }
+    }
+
 
     private static boolean continuarPrograma(BufferedReader reader) throws IOException {
         while (true) {
