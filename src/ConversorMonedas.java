@@ -35,7 +35,7 @@ public class ConversorMonedas {
     }
 
 
-    private static final String API_KEY = "4847f367b64a5729536bcb7e";
+    private static final String API_KEY = "tu-api-key";
     private static final String URL_BASE = "https://v6.exchangerate-api.com/v6/" + API_KEY + "/latest/";
     private static Set<String> monedasDisponibles;
     private static final Gson GSON = new Gson();
